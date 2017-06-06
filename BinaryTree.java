@@ -1,12 +1,21 @@
-import java.util.InputMismatchException;
+import java.util.LinkedList;
 
 /**
  * Created by basescu on 29.05.17.
  */
+
+
+class InexistentKeyException extends Exception {
+    @Override
+    public String getMessage() {
+        return "Key does not exist in tree";
+    }
+}
+
 public class BinaryTree {
-    private Integer info;
-    private BinaryTree left;
-    private BinaryTree right;
+    private final int info;
+    private final BinaryTree left;
+    private final BinaryTree right;
 
     public BinaryTree(int info, BinaryTree left, BinaryTree right) {
         this.info = info;
@@ -14,124 +23,126 @@ public class BinaryTree {
         this.right = right;
     }
 
-    public Integer getInfo() {
+    public int getInfo() {
         return info;
     }
 
-    public String printAncestors(Integer key) {
-        return this.printAncestors(key, "");
-    }
-
-    private String printAncestors(Integer key, String ancestors) {
-        if(this.info == key)
-            return ancestors;
-        if (this.left == null && this.right == null)
+    public String printAncestors(int key) throws InexistentKeyException{
+        LinkedList<BinaryTree> ancestors =  this.findAncestors(key);
+        if (ancestors.size() == 0) {
             return "";
-        StringBuilder sb = new StringBuilder(ancestors.length() + 10);
-        sb.append(this.info);
-        sb.append(" ");
-        sb.append(ancestors);
-        String left = "";
-        String right = "";
-
-        if(this.left != null) {
-           left = this.left.printAncestors(key, sb.toString());
-        }
-        if(this.right != null) {
-            right = this.right.printAncestors(key, sb.toString());
         }
 
-        if(left != "")
-            return left;
-        return right;
+        /* initialize String Builder with probably enough space - 6 chars per key (including space separator) */
+        StringBuilder sb = new StringBuilder(6 * ancestors.size());
+
+        for (BinaryTree crtNode : ancestors) {
+            sb.append(crtNode.getInfo());
+            sb.append(" ");
+        }
+        sb.deleteCharAt(sb.length() - 1);
+
+        return sb.toString();
     }
 
-    private BinaryTree lowestCommonAncestor(BinaryTree tree1, BinaryTree tree2) {
-        if(tree1 == null || tree2 == null)
-            return null;
+    private LinkedList<BinaryTree> findAncestors(int key) throws InexistentKeyException {
+        LinkedList<BinaryTree> ancestors = new LinkedList<BinaryTree>();
 
-        BinaryTree leftRes = null;
-        BinaryTree rightRes = null;
-
-        if (this.left != null)
-            leftRes = this.left.lowestCommonAncestor(tree1, tree2);
-        if (this.right != null)
-            rightRes = this.right.lowestCommonAncestor(tree1, tree2);
-        if(this.left == null)
-            return rightRes;
-        if(this.right == null)
-            return leftRes;
-
-        if(this.left.contains(tree1) && this.right.contains(tree2))
-            return this;
-        if(this.left.contains(tree2) && this.right.contains(tree1))
-            return this;
-
-        if(leftRes != null)
-            return leftRes;
-        return rightRes;
-    }
-
-    private boolean contains(BinaryTree contained) {
-        if(this.info == contained.info) {
-           if (this.isIdentical(contained))
-               return true;
+        if (this.info == key) {
+            return ancestors;
         }
 
-        boolean containedLeft = false;
-        boolean containedRight = false;
+        LinkedList leftAncestors = null;
+        LinkedList rightAncestors = null;
 
-        if(this.left != null)
-            containedLeft = this.left.contains(contained);
+        /* look for key left and right, continue tree exploration if key not found */
+        if (this.left != null) {
+            try {
+                leftAncestors = this.left.findAncestors(key);
+                leftAncestors.add(this);
+                return leftAncestors;
+            } catch (InexistentKeyException e) {
 
-        if(this.right != null)
-            containedRight = this.right.contains(contained);
+            }
+        }
+        if (this.right != null) {
+            try {
+                rightAncestors = this.right.findAncestors(key);
+                rightAncestors.add(this);
+                return rightAncestors;
+            } catch (InexistentKeyException e) {
+            }
+        }
 
-        return (containedLeft || containedRight);
+        throw new InexistentKeyException();
     }
 
-    private boolean isIdentical(BinaryTree tree) {
-        if(this.info != tree.info)
-            return false;
-        if(this.left == null && tree.left != null)
-            return false;
-        if(this.left != null && tree.left == null)
-            return false;
-        if(this.right == null && tree.right != null)
-            return false;
-        if(this.right != null && tree.right == null)
-            return false;
+    public BinaryTree lowestCommonAncestor(int key1, int key2) throws InexistentKeyException {
 
-        boolean leftMatch = true;
-        boolean rightMatch = true;
-        if(this.left != null) {
-            leftMatch = this.left.isIdentical(tree.left);
+        /* find ancestors of key 1, take each of them and see if the tree rooted there contains key2 */
+        LinkedList<BinaryTree> ancestorsKey1 = findAncestors(key1);
+
+        if(ancestorsKey1.size() == 0) {
+            if (this.containsKey(key2)) {
+                return this;
+            }
+            throw new InexistentKeyException();
         }
-        if(this.right != null) {
-            rightMatch = this.right.isIdentical(tree.right);
+
+        for (int i = 0 ; i < ancestorsKey1.size() ; i++) {
+
+            BinaryTree intermedNode = ancestorsKey1.get(i);
+            int prevAncestor;
+            if (i > 0) {
+                prevAncestor = ancestorsKey1.get(i-1).getInfo();
+            }
+            else {
+                prevAncestor = key1;
+            }
+
+            if (intermedNode.getInfo() == key2) {
+                return intermedNode;
+            }
+
+
+            if (intermedNode.left != null) {
+                if (intermedNode.left.getInfo() == prevAncestor) {
+                    if (intermedNode.right != null) {
+                        if (intermedNode.right.containsKey(key2)) {
+                            return intermedNode;
+                        }
+                    }
+                }
+            }
+
+            if (intermedNode.right != null) {
+                if (intermedNode.right.getInfo() == prevAncestor) {
+                    if (intermedNode.left != null) {
+                        if (intermedNode.left.containsKey(key2)) {
+                            return intermedNode;
+                        }
+                    }
+                }
+            }
         }
-        return (leftMatch && rightMatch);
+
+        throw new InexistentKeyException();
     }
 
-    public static void main(String[] args) {
-        BinaryTree bt = new BinaryTree(16,
-                new BinaryTree(9,
-                        new BinaryTree(3,
-                                new BinaryTree(1, null, null),
-                                new BinaryTree(5, null, null)
-                        ),
-                        new BinaryTree(14, null, null)
-                ),
-                new BinaryTree(18,
-                        null,
-                        new BinaryTree(19, null, null)
-                )
-        );
+    private boolean containsKey(int key) {
+        if (this.getInfo() == key) {
+            return true;
+        }
 
-        // Question 1
-        System.out.println(bt.printAncestors(5));
+        boolean inLeft = false;
+        boolean inRight = false;
+        if (this.left != null) {
+            inLeft = this.left.containsKey(key);
+        }
+        if (this.right != null) {
+            inRight = this.right.containsKey(key);
+        }
 
-        // Question 2
-        System.out.println(bt.lowestCommonAncestor(new BinaryTree(5, null, null), new BinaryTree(14, null, null)).getInfo());
+        return (inLeft || inRight);
     }
 }
